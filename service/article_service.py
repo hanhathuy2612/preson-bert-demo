@@ -1,5 +1,4 @@
 import pickle
-from typing import List
 
 import torch
 from faker import Faker
@@ -10,11 +9,14 @@ from database_connection import get_press_on_connection, get_embedding_connectio
 from model.article_model import ArticleModel
 
 fake = Faker()
+model_name = 'bert-base-multilingual-cased'
+tokenizer = BertTokenizer.from_pretrained(model_name)
+model = BertModel.from_pretrained(model_name)
 
 
 def generate_article_data():
-    mydb = get_press_on_connection()
-    my_cursor = mydb.cursor()
+    my_db = get_press_on_connection()
+    my_cursor = my_db.cursor()
 
     # Generate random data
     data = [(fake.sentence(), fake.paragraph()) for _ in range(1000)]  # Tạo 10 cặp (title, description) ngẫu nhiên
@@ -28,8 +30,8 @@ def generate_article_data():
     sql_insert = sql_insert.rstrip(",\n") + ";"
 
     my_cursor.execute(sql_insert)
-    mydb.commit()
-    mydb.close()
+    my_db.commit()
+    my_db.close()
 
 
 def generate_tag_data():
@@ -100,7 +102,7 @@ def build_embedding():
 
     embedding_id = 1
     for article in get_articles():
-        description_embedding = encode_text(f"{article.title} - {article.description}")
+        description_embedding = encode_text(f"{article.description}")
         description_embedding_bytes = pickle.dumps(description_embedding)
         sql = "INSERT INTO article_embedding (id, article_id, embedding) VALUES (%s, %s, %s)"
         val = (embedding_id, article.id, description_embedding_bytes,)
@@ -146,11 +148,6 @@ def get_articles_by_ids(article_ids):
     return articles
 
 
-model_name = 'bert-base-uncased'
-tokenizer = BertTokenizer.from_pretrained(model_name)
-model = BertModel.from_pretrained(model_name)
-
-
 def encode_text(text):
     inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True)
     with torch.no_grad():
@@ -171,7 +168,8 @@ def search(keyword: str):
 
     top_n = 10
     top_indices = scores.argsort()[-top_n:][::-1]
-
+    scores.sort(axis=-1)
+    print(scores)
     filtered_article_ids = [article_ids[index + 1] for index in top_indices]
     print(filtered_article_ids)
     top_articles = get_articles_by_ids(filtered_article_ids)
@@ -180,5 +178,5 @@ def search(keyword: str):
 
 
 # generate_article_data()
-# build_embedding()
-search('Management bad strategy employee')
+build_embedding()
+search('The area chosen for the capital had been inhabited by Aboriginal Australians for up to 21,000 years,[11] by groups including the Ngunnawal, Ngunawal and Ngambri.[12] European settlement commenced in the first half of the 19th century, as evidenced by surviving landmarks such as St John`s Anglican Church and Blundells Cottage. On 1 January 1901, federation of the colonies of Australia was achieved. Following a long dispute over whether Sydney or Melbourne should be the national capital,[13] a compromise was reached: the new capital would be built in New South Wales, so long as it was at least 100 mi (160 km) from Sydney. The capital city was founded and formally named as Canberra in 1913. A plan by the American architects Walter Burley Griffin and Marion Mahony Griffin was selected after an international design contest, and construction commenced in 1913.[14][15] Unusual among Australian cities, it is an entirely planned city. The Griffins plan featured geometric motifs and was centred on axes aligned with significant topographical landmarks such as Black Mountain, Mount Ainslie, Capital Hill and City Hill. Canberras mountainous location makes it the only mainland Australian city where snow-capped mountains can be seen in winter, although snow in the city itself is uncommon.')
